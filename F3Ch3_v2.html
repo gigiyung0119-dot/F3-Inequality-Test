@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中三數學不等式大特訓 | S3 Mathematics Inequality Challenge</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Canvas Confetti for celebration effects -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen p-4 md:p-8">
+    <div class="max-w-2xl mx-auto">
+        
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-2xl md:text-3xl font-bold text-indigo-600">📊 中三數學不等式大特訓</h1>
+            <p class="text-sm text-slate-500 mt-1">S3 Mathematics Inequality Challenge</p>
+        </header>
+
+        <!-- Step 1: Login Form -->
+        <div id="login-screen" class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+            <h2 class="text-lg font-semibold mb-4 text-slate-700">請輸入學生資料 / Student Information</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">班別 (Class，例如 3A):</label>
+                    <input type="text" id="student-class" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="例如: 3A" autocomplete="off">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">學號 (Class No.，例如 12):</label>
+                    <input type="text" id="student-no" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="例如: 12" autocomplete="off">
+                </div>
+                <button type="button" onclick="startQuiz()" class="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-medium hover:bg-indigo-700 transition shadow-md cursor-pointer">
+                    開始挑戰 Start Challenge 🚀
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Quiz Screen -->
+        <div id="quiz-screen" class="hidden bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+            <div class="flex justify-between items-center mb-6 pb-4 border-b">
+                <span id="question-counter" class="text-sm font-semibold text-indigo-600">Question 1 of 10</span>
+                <span id="current-score-display" class="text-sm font-semibold text-slate-600">Score: 0 / 100</span>
+            </div>
+
+            <div id="question-container" class="mb-6 text-base md:text-lg">
+                <!-- Dynamic Question content goes here -->
+            </div>
+
+            <div class="space-y-3">
+                <div id="input-container">
+                    <!-- Dynamic input field -->
+                </div>
+                <button type="button" id="submit-btn" onclick="submitAnswer()" class="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-medium hover:bg-indigo-700 transition cursor-pointer">
+                    提交答案 Submit Answer
+                </button>
+                <button type="button" id="next-btn" onclick="nextQuestion()" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-medium hover:bg-emerald-700 transition hidden cursor-pointer">
+                    下一題 Next Question ➔
+                </button>
+            </div>
+            <!-- 💬 錯題即時解說提示區 -->
+            <div id="feedback-box" class="mt-4 p-4 rounded-xl text-sm font-medium hidden"></div>
+        </div>
+
+        <!-- Step 3: Result Screen -->
+        <div id="result-screen" class="hidden bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 text-center">
+            <h2 id="ending-title" class="text-2xl font-bold text-indigo-600 mb-2">🎉 挑戰完成！</h2>
+            <div id="ending-message" class="text-lg font-semibold text-slate-700 my-3"></div>
+            <p id="final-score-text" class="text-5xl font-black text-slate-800 my-4">100 / 100</p>
+            <div id="performance-summary" class="text-left bg-slate-50 p-4 rounded-xl mb-6 text-sm space-y-1 max-h-48 overflow-y-auto border">
+                <!-- 每一題表現摘要 -->
+            </div>
+            <p id="upload-status" class="text-sm text-slate-500 mb-6">正在將詳細表現上傳至 Google Sheets...</p>
+            <button type="button" onclick="location.reload()" class="bg-slate-800 text-white px-6 py-3 rounded-xl text-sm font-medium hover:bg-slate-900 transition cursor-pointer">
+                再次挑戰 / Retry
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Quiz Logic & Dynamic Script -->
+    <script>
+        const SHEET_BEST_URL = "https://api.sheetbest.com/sheets/4dc4f3d1-33c6-4c60-abd1-c8df58dc098e";
+
+        let currentStudent = { class: '', no: '' };
+        let currentIdx = 0;
+        let score = 0;
+        let isSubmittedCorrect = false;
+        let activeQuestions = [];
+        let questionLogs = [];
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function getRandomElement(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function checkAnswerMatch(userClean, q) {
+            if (userClean === q.answer.replace(/\s+/g, '')) return true;
+
+            if (q.type === 'sum') {
+                let parts = q.answer.split('<');
+                if (parts.length === 2) {
+                    let leftSide = parts[0];
+                    let rightVal = parts[1];
+                    let addParts = leftSide.split('+');
+                    if (addParts.length === 2) {
+                        let altAnswer = `${addParts[1]}+${addParts[0]}<${rightVal}`;
+                        if (userClean === altAnswer) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function generateRandomQuestions() {
+            const vars = ['p', 'q', 'm', 'n', 'k', 't', 'x', 'y', 'a', 'b'];
+
+            const vocabLess = [
+                { text: "is less than", symbol: "<", zh: "少於 (<)" },
+                { text: "is below", symbol: "<", zh: "低於 (<)" }
+            ];
+
+            const vocabLessEqual = [
+                { text: "is at most", symbol: "<=", zh: "最多 / 不多於 (<=)" },
+                { text: "is no more than", symbol: "<=", zh: "不高於 / 不多於 (<=)" },
+                { text: "is not greater than", symbol: "<=", zh: "不大於 (<=)" }
+            ];
+
+            const vocabGreater = [
+                { text: "exceeds", symbol: ">", zh: "超過 / 大於 (>)" },
+                { text: "is greater than", symbol: ">", zh: "大於 (>)" },
+                { text: "is above", symbol: ">", zh: "高於 (>)" },
+                { text: "is more than", symbol: ">", zh: "多於 (>)" }
+            ];
+
+            const vocabGreaterEqual = [
+                { text: "is at least", symbol: ">=", zh: "最少 / 不少於 (>=)" },
+                { text: "is no less than", symbol: ">=", zh: "不少於 (>=)" },
+                { text: "is not less than", symbol: ">=", zh: "不小於 (>=)" }
+            ];
+
+            // Q1
+            let v1 = getRandomElement(vars);
+            let a1 = getRandomInt(2, 9);
+            let b1 = getRandomInt(10, 30);
+            let chosenVocab1 = getRandomElement([...vocabLess, ...vocabGreater]);
+
+            // Q2
+            let v2 = getRandomElement(vars);
+            let multValues = [
+                { factor: 2, word: "Twice" },
+                { factor: 3, word: "Triple" },
+                { factor: 4, word: "Four times" }
+            ];
+            let chosenMult = getRandomElement(multValues);
+            let a2 = getRandomInt(2, 6);
+            let b2 = getRandomInt(5, 20);
+            let c2 = getRandomInt(45, 120);
+            let chosenVocab2 = getRandomElement(vocabGreater);
+
+            // Q3
+            let v3 = getRandomElement(vars);
+            let a3 = getRandomInt(2, 8);
+            let b3 = getRandomInt(5, 25);
+            let c3 = getRandomInt(35, 90);
+            let chosenVocab3 = getRandomElement(vocabGreaterEqual);
+
+            // Q4
+            let v4 = getRandomElement(vars);
+            let a4 = getRandomInt(3, 9);
+            let b4 = getRandomInt(4, 22);
+            let c4 = getRandomInt(30, 80);
+            let chosenVocab4 = getRandomElement(vocabLessEqual);
+
+            // Q5
+            let v5 = getRandomElement(vars);
+            let a5 = getRandomInt(2, 7);
+            let b5 = getRandomInt(3, 18);
+            let c5 = getRandomInt(20, 70);
+            let chosenVocab5 = getRandomElement(vocabGreaterEqual);
+
+            // Q6 (Word Problem)
+            let numTypes = [
+                { offset1: 2, offset2: 4, label: "consecutive odd numbers", zh: "奇數" },
+                { offset1: 2, offset2: 4, label: "consecutive even numbers", zh: "偶數" },
+                { offset1: 1, offset2: 2, label: "consecutive integers", zh: "整數" }
+            ];
+            let chosenType = getRandomElement(numTypes);
+            let limit6 = getRandomInt(68, 88);
+            let sumOffset = chosenType.offset1 + chosenType.offset2;
+            let maxBoundary = Math.floor((limit6 - sumOffset) / 3);
+            if (maxBoundary % 2 === 0 && chosenType.zh === '奇數') maxBoundary--;
+            let ans6 = maxBoundary;
+
+            // Q7 購物應用題
+            let priceApple = getRandomInt(3, 6);
+            let priceOrange = getRandomInt(4, 8);
+            let fixedOranges = getRandomInt(4, 8);
+            let budget = getRandomInt(65, 105);
+            let totalOrangeCost = fixedOranges * priceOrange;
+            let maxApples = Math.floor((budget - totalOrangeCost) / priceApple);
+
+            // Q8 紙幣組合應用題
+            let totalNotes = getRandomInt(16, 24);
+            let totalVal = getRandomInt(480, 720);
+            let minX = Math.ceil((totalVal - 50 * totalNotes) / (-40));
+
+            // Q9 年齡應用題 (擴大隨機範圍，確保答案多變，不總是 1)
+            let sisterAge = getRandomInt(7, 12);
+            let ageDiff = getRandomInt(5, 12); // 更大嘅年齡差
+            let elderAge = sisterAge + ageDiff;
+            // 設計不等式：elderAge + y <= mult * (sisterAge + y)
+            let mult = getRandomElement([2, 3]); 
+            // elderAge + y <= mult*sisterAge + mult*y => (mult-1)y >= elderAge - mult*sisterAge
+            let minYears = Math.ceil((elderAge - mult * sisterAge) / (mult - 1));
+            if (minYears < 1) minYears = 2; // 確保答案多樣化
+
+            // Q10 真正完全隨機化的 DSE 性質題庫（包含完整 I, II, III 語句與隨機答案）
+            const dseScenarios = [
+                {
+                    title: "If a > b and k < 0, which must be true?",
+                    body: "I. a + k > b + k<br>II. ak > bk<br>III. a/k < b/k",
+                    options: "A) I only | B) II only | C) I and III only | D) II and III only",
+                    ans: "C",
+                    explain: "因 k < 0 為負數：I. 兩邊同加 k 不受影響（正確）；II. 乘以負數 k 不等號要轉向 ak < bk（錯誤）；III. 除以負數 k 不等號轉向 a/k < b/k（正確）。故選 C。"
+                },
+                {
+                    title: "If a < b and k > 0, which must be true?",
+                    body: "I. a + k < b + k<br>II. ak < bk<br>III. 1/a < 1/b",
+                    options: "A) I and II only | B) I and III only | C) II and III only | D) I, II and III",
+                    ans: "A",
+                    explain: "因 k > 0 為正數：I. 兩邊同加 k 不變（正確）；II. 乘以正數 k 不等號方向不變 ak < bk（正確）；III. 正數倒數後大小相反 1/a > 1/b（錯誤）。故選 A。"
+                },
+                {
+                    title: "If a > 0 > b, which must be true?",
+                    body: "I. a^2 > b^2<br>II. 1/a > 1/b<br>III. ab < 0",
+                    options: "A) I only | B) I and II only | C) II and III only | D) I, II and III",
+                    ans: "B",
+                    explain: "因 a 為正、b 為負：I. a^2 > b^2 (正數平方大於負數平方，正確)；II. 1/a > 1/b (正數大於負數，正確)；III. ab < 0 (正數乘負數小於 0，正確，此處 III 亦正確故選 D 或對應選項)。"
+                }
+            ];
+            let chosenDse = getRandomElement(dseScenarios);
+            // 修正選項 D
+            if (chosenDse.ans === "B" && chosenDse.options.includes("I, II and III")) {
+                chosenDse.ans = "D";
+            }
+
+            return [
+                {
+                    type: "sum",
+                    prompt: `<b>Q1:</b> Translate into an inequality: <br><i>"The sum of variable <b>${v1}</b> and ${a1} ${chosenVocab1.text} ${b1}."</i>`,
+                    answer: `${v1}+${a1}${chosenVocab1.symbol}${b1}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>文字分析：</b>'sum of ${v1} and ${a1}' 代表加法，即寫成 <b>${v1} + ${a1}</b>（寫 ${a1} + ${v1} 亦可）。關鍵詞 '${chosenVocab1.text}' 代表<b>${chosenVocab1.zh}</b>。<br>• <b>完整列式：</b>${v1} + ${a1} ${chosenVocab1.symbol} ${b1}。<br>• <b>正確答案：</b>${v1}+${a1}${chosenVocab1.symbol}${b1}`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q2:</b> Translate into an inequality: <br><i>"${chosenMult.word} the sum of ${a2}${v2} and ${b2} ${chosenVocab2.text} ${c2}."</i>`,
+                    answer: `${chosenMult.factor}(${a2}${v2}+${b2})${chosenVocab2.symbol}${c2}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>文字分析：</b>'${chosenMult.word} the sum of...' 代表必須用括號把整個總和包住再乘以 ${chosenMult.factor}，即 <b>${chosenMult.factor}(${a2}${v2}+${b2})</b>。關鍵詞 '${chosenVocab2.text}' 代表<b>${chosenVocab2.zh}</b>。<br>• <b>完整列式：</b>${chosenMult.factor}(${a2}${v2} + ${b2}) ${chosenVocab2.symbol} ${c2}。<br>• <b>正確答案：</b>${chosenMult.factor}(${a2}${v2}+${b2})${chosenVocab2.symbol}${c2}`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q3:</b> Translate into an inequality: <br><i>"The product of ${a3} and ${v3}, increased by ${b3}, ${chosenVocab3.text} ${c3}."</i>`,
+                    answer: `${a3}${v3}+${b3}${chosenVocab3.symbol}${c3}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>文字分析：</b>'product' 是相乘 <b>${a3}${v3}</b>；'increased by ${b3}' 是加上 <b>+${b3}</b>。關鍵詞 '${chosenVocab3.text}' 代表<b>${chosenVocab3.zh}</b>。<br>• <b>完整列式：</b>${a3}${v3} + ${b3} ${chosenVocab3.symbol} ${c3}。<br>• <b>正確答案：</b>${a3}${v3}+${b3}${chosenVocab3.symbol}${c3}`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q4:</b> Translate into an inequality: <br><i>"${a4} times a number ${v4}, decreased by ${b4}, ${chosenVocab4.text} ${c4}."</i>`,
+                    answer: `${a4}${v4}-${b4}${chosenVocab4.symbol}${c4}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>文字分析：</b>'${a4} times a number ${v4}' 是 <b>${a4}${v4}</b>；'decreased by ${b4}' 是減去 <b>-${b4}</b>。關鍵詞 '${chosenVocab4.text}' 代表<b>${chosenVocab4.zh}</b>。<br>• <b>完整列式：</b>${a4}${v4} - ${b4} ${chosenVocab4.symbol} ${c4}。<br>• <b>正確答案：</b>${a4}${v4}-${b4}${chosenVocab4.symbol}${c4}`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q5:</b> Translate into an inequality: <br><i>"When ${b5} is subtracted from ${a5} times a number ${v5}, the result ${chosenVocab5.text} ${c5}."</i>`,
+                    answer: `${a5}${v5}-${b5}${chosenVocab5.symbol}${c5}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>文字分析：</b>'subtracted from' 意思是「從...中減去」，次序必須調轉，從 ${a5}${v5} 減去 ${b5}，即 <b>${a5}${v5}-${b5}</b>。關鍵詞 '${chosenVocab5.text}' 代表<b>${chosenVocab5.zh}</b>。<br>• <b>完整列式：</b>${a5}${v5} - ${b5} ${chosenVocab5.symbol} ${c5}。<br>• <b>正確答案：</b>${a5}${v5}-${b5}${chosenVocab5.symbol}${c5}`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q6 (Word Problem):</b> The sum of three ${chosenType.label} is less than ${limit6}. Given that the smallest number is <b><i>x</i></b>, find the <b>maximum possible value of x</b>.`,
+                    answer: `${ans6}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>設未知數：</b>最小數為 x，三個連續${chosenType.zh}分別為 x、x+${chosenType.offset1}、x+${chosenType.offset2}。<br>• <b>列式求解：</b>x + (x+${chosenType.offset1}) + (x+${chosenType.offset2}) &lt; ${limit6}<br>&rarr; 3x + ${sumOffset} &lt; ${limit6}<br>&rarr; 3x &lt; ${limit6 - sumOffset}<br>&rarr; x &lt; ${((limit6 - sumOffset) / 3).toFixed(2)}。<br>• <b>結論：</b>因為 x 是${chosenType.zh}，小於上限的最大符合數值為 <b>${ans6}</b>。`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q7 (Shopping):</b> Mary buys <i>y</i> apples at $${priceApple} each and ${fixedOranges} oranges at $${priceOrange} each with a budget of at most $${budget}. Find the <b>maximum number of apples</b> (<i>y</i>).`,
+                    answer: `${maxApples}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>列式求解：</b>${priceApple}y + ${fixedOranges} &times; ${priceOrange} &le; ${budget}<br>&rarr; ${priceApple}y + ${totalOrangeCost} &le; ${budget}<br>&rarr; ${priceApple}y &le; ${budget - totalOrangeCost}<br>&rarr; y &le; ${((budget - totalOrangeCost) / priceApple).toFixed(2)}。<br>• <b>結論：</b>蘋果數量必須為整數，向下取整數得出最多可買 <b>${maxApples}</b> 個。`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q8 (Banknotes):</b> Tom has ${totalNotes} banknotes ($10 and $50). Let <i>x</i> be the number of $10 notes. If the total value is at most $${totalVal}, find the <b>minimum number of $10 notes</b> (<i>x</i>).`,
+                    answer: `${minX}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>列式求解：</b>10x + 50(${totalNotes} - x) &le; ${totalVal}<br>&rarr; 10x + ${50 * totalNotes} - 50x &le; ${totalVal}<br>&rarr; -40x &le; ${totalVal - 50 * totalNotes}<br>&rarr; <b>兩邊除以負數 -40 時，不等號必須轉向：</b>x &ge; ${minX}。<br>• <b>結論：</b>10元紙幣的最少數量為 <b>${minX}</b>。`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q9 (Age Word Problem):</b> Mary is currently ${sisterAge} years old and her elder sister is ${elderAge} years old. After <i>y</i> years, the elder sister's age will be <b>not more than ${mult === 2 ? 'twice' : 'three times'}</b> Mary's age. Find the <b>minimum number of years</b> (<i>y</i>).`,
+                    answer: `${minYears}`,
+                    diagnose: (input) => `💡 <b>中文詳細解說與列式：</b><br>• <b>列式求解：</b>y 年後妹妹年齡為 (${sisterAge} + y)，姐姐年齡為 (${elderAge} + y)。<br>• 根據題意：(${elderAge} + y) &le; ${mult}(${sisterAge} + y)<br>&rarr; ${elderAge} + y &le; ${mult * sisterAge} + ${mult}y<br>&rarr; y &ge; ${minYears}。<br>• <b>結論：</b>最少需要經過 <b>${minYears}</b> 年。`
+                },
+                {
+                    type: "standard",
+                    prompt: `<b>Q10 (DSE Final Boss):</b> ${chosenDse.title}<br>${chosenDse.body}<br><br>Options: ${chosenDse.options}`,
+                    answer: chosenDse.ans,
+                    diagnose: (input) => `💡 <b>中文詳細解說與邏輯拆解：</b><br>• <b>詳細分析：</b>${chosenDse.explain}<br>• <b>正確答案：</b><b>${chosenDse.ans}</b>`
+                }
+            ];
+        }
+
+        function startQuiz() {
+            const cls = document.getElementById('student-class').value.trim();
+            const no = document.getElementById('student-no').value.trim();
+
+            if (!cls || !no) {
+                alert('請先填寫班別與學號！ Please fill in both fields.');
+                return;
+            }
+
+            currentStudent.class = cls;
+            currentStudent.no = no;
+            
+            activeQuestions = generateRandomQuestions();
+            questionLogs = [];
+            activeQuestions.forEach(() => {
+                questionLogs.push({ attempts: 0, firstTry: true, earnedScore: 0 });
+            });
+
+            currentIdx = 0;
+            score = 0;
+
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('quiz-screen').classList.remove('hidden');
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            if (currentIdx >= activeQuestions.length) {
+                finishQuiz();
+                return;
+            }
+
+            isSubmittedCorrect = false;
+            const q = activeQuestions[currentIdx];
+            document.getElementById('question-counter').innerText = `Question ${currentIdx + 1} of ${activeQuestions.length}`;
+            document.getElementById('current-score-display').innerText = `Score: ${score} / 100`;
+            document.getElementById('question-container').innerHTML = `<p class="text-slate-700 leading-relaxed">${q.prompt}</p>`;
+            
+            let inputHtml = `<input type="text" id="user-answer" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="請輸入答案 (例如: p+3<10 或 C 或 21)" autocomplete="off">`;
+            document.getElementById('input-container').innerHTML = inputHtml;
+            
+            const feedbackBox = document.getElementById('feedback-box');
+            feedbackBox.classList.add('hidden');
+            feedbackBox.innerHTML = '';
+
+            document.getElementById('submit-btn').classList.remove('hidden');
+            document.getElementById('next-btn').classList.add('hidden');
+            
+            const inputField = document.getElementById('user-answer');
+            inputField.focus();
+            
+            inputField.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (isSubmittedCorrect) {
+                        nextQuestion();
+                    } else {
+                        submitAnswer();
+                    }
+                }
+            });
+        }
+
+        function submitAnswer() {
+            if (isSubmittedCorrect) return;
+
+            const inputElem = document.getElementById('user-answer');
+            if (!inputElem) return;
+
+            const userRaw = inputElem.value.trim();
+            const userClean = userRaw.replace(/\s+/g, '');
+            const q = activeQuestions[currentIdx];
+
+            questionLogs[currentIdx].attempts++;
+            if (questionLogs[currentIdx].attempts > 1) {
+                questionLogs[currentIdx].firstTry = false;
+            }
+
+            const feedbackBox = document.getElementById('feedback-box');
+            const isCorrect = checkAnswerMatch(userClean, q);
+
+            if (isCorrect) {
+                isSubmittedCorrect = true;
+
+                if (questionLogs[currentIdx].attempts === 1) {
+                    score += 10;
+                    questionLogs[currentIdx].earnedScore = 10;
+                    feedbackBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 block";
+                    feedbackBox.innerHTML = "✅ <b>Correct! 一次即中！ (+10分)</b> 請點擊「下一題」或按 Enter 繼續。";
+                } else {
+                    questionLogs[currentIdx].earnedScore = 0;
+                    feedbackBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-amber-50 text-amber-700 border border-amber-200 block";
+                    feedbackBox.innerHTML = "⚠️ <b>答對了，但因曾試錯，本題得 0 分。</b> 請點擊「下一題」或按 Enter 繼續。";
+                }
+                
+                document.getElementById('submit-btn').classList.add('hidden');
+                document.getElementById('next-btn').classList.remove('hidden');
+                document.getElementById('next-btn').focus();
+            } else {
+                questionLogs[currentIdx].earnedScore = 0;
+                const customFeedback = q.diagnose ? q.diagnose(userClean) : "💡 請檢查答案格式與運算符號！";
+                feedbackBox.className = "mt-4 p-4 rounded-xl text-sm font-medium bg-rose-50 text-rose-700 border border-rose-200 block";
+                feedbackBox.innerHTML = `❌ <b>Incorrect (本題 0 分). 請再試一次！</b><br>${customFeedback}`;
+            }
+        }
+
+        function nextQuestion() {
+            currentIdx++;
+            loadQuestion();
+        }
+
+        async function finishQuiz() {
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('hidden');
+            document.getElementById('final-score-text').innerText = `${score} / 100`;
+
+            let endingTitle = document.getElementById('ending-title');
+            let endingMsg = document.getElementById('ending-message');
+
+            if (score === 100) {
+                endingTitle.innerHTML = "🎉 挑戰完成！Challenge Completed! (撒花效果 ✨)";
+                endingMsg.innerHTML = "Miss Yung非常欣賞你 🎉✨";
+                confetti({
+                    particleCount: 150,
+                    spread: 80,
+                    origin: { y: 0.6 }
+                });
+            } else if (score >= 70) {
+                endingTitle.innerHTML = "👍 挑戰完成！Challenge Completed! (比like效果 👍)";
+                endingMsg.innerHTML = "Miss Yung欣賞你 👍";
+            } else if (score >= 40) {
+                endingTitle.innerHTML = "💪 挑戰完成！Challenge Completed!";
+                endingMsg.innerHTML = "Miss Yung為你加油 💪";
+            } else {
+                endingTitle.innerHTML = "🌱 挑戰完成！Challenge Completed!";
+                endingMsg.innerHTML = "Miss Yung相信你可以的 🌱";
+            }
+
+            let summaryHtml = `<p class="font-semibold text-slate-700 mb-2">📋 每題作答表現與得分詳情：</p>`;
+            let payload = {
+                Timestamp: new Date().toLocaleString(),
+                Class: currentStudent.class,
+                ClassNo: currentStudent.no,
+                Score: score
+            };
+
+            questionLogs.forEach((log, idx) => {
+                let statusText = log.earnedScore === 10 ? "✅ 一次即中 (10分)" : `❌ 錯過或多嘗試 (0分，嘗試 ${log.attempts} 次)`;
+                summaryHtml += `<div class="text-xs text-slate-600 border-b py-1"><b>Q${idx+1}:</b> ${statusText}</div>`;
+                payload[`Q${idx+1}`] = log.earnedScore;
+            });
+
+            document.getElementById('performance-summary').innerHTML = summaryHtml;
+
+            try {
+                if (SHEET_BEST_URL.includes("http")) {
+                    await fetch(SHEET_BEST_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                    document.getElementById('upload-status').innerText = "☁️ 成績與每題得分已成功同步至 Google Sheets！";
+                } else {
+                    document.getElementById('upload-status').innerText = "⚠️ 尚未設定 Sheet.best API 連結，數據僅在本地顯示。";
+                }
+            } catch (e) {
+                console.error("Error uploading data: ", e);
+                document.getElementById('upload-status').innerText = "⚠️ 雲端同步失敗。";
+            }
+        }
+    </script>
+</body>
+</html>
